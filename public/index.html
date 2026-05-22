@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Admin Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: var(--bg-base);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+        }
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .logout-btn {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: var(--error);
+        }
+        .logout-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
+        .capacity-gauge {
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 12px;
+            border: 1px solid var(--border-color);
+        }
+        .capacity-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--primary-gradient);
+            transition: width 0.5s ease-out;
+        }
+        .capacity-fill.high {
+            background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+        }
+        .guest-search-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .csv-error-list {
+            max-height: 120px;
+            overflow-y: auto;
+            background: var(--error-bg);
+            border: 1px solid var(--error-border);
+            color: var(--error);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 0.85rem;
+            text-align: left;
+        }
+        .edit-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .edit-modal-overlay.active {
+            display: flex;
+        }
+        .edit-modal-card {
+            width: 100%;
+            max-width: 440px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Edit Guest Modal -->
+    <div id="edit-modal" class="edit-modal-overlay">
+        <div class="edit-modal-card glass-panel">
+            <h3 style="margin-bottom: 18px;">Edit Guest</h3>
+            <form id="edit-guest-form">
+                <input type="hidden" id="edit-guest-id">
+                <div class="form-group">
+                    <label class="form-label" for="edit-guest-name">Full Name</label>
+                    <input type="text" id="edit-guest-name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-guest-email">Email Address</label>
+                    <input type="email" id="edit-guest-email" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-guest-tier">Ticket Tier</label>
+                    <select id="edit-guest-tier" class="form-control">
+                        <option value="general">General Admission</option>
+                        <option value="vip">VIP Guest</option>
+                        <option value="staff">Staff/Organizer</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary btn-sm" style="flex: 1;">Save Changes</button>
+                    <button type="button" onclick="closeEditModal()" class="btn btn-secondary btn-sm" style="flex: 1;">Cancel</button>
+                </div>
+                <div id="edit-modal-error" style="color: var(--error); font-size: 0.85rem; margin-top: 12px; text-align: center; display: none;"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Login Modal -->
+    <div id="login-modal" class="login-overlay">
+        <div class="login-card glass-panel">
+            <h2 style="text-align: center; margin-bottom: 24px;">Admin Authentication</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="admin-password-input" class="form-label">Master Password</label>
+                    <input type="password" id="admin-password-input" class="form-control" placeholder="••••••••" required>
+                </div>
+                <div id="login-error" style="color: var(--error); font-size: 0.85rem; margin-bottom: 16px; text-align: center; display: none;">
+                    Invalid password. Please try again.
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Container -->
+    <div id="dashboard-container" class="container" style="display: none;">
+        
+        <!-- Header -->
+        <header class="admin-header">
+            <div>
+                <h1>Event Access Panel</h1>
+                <p id="nav-event-title" style="color: var(--text-secondary); font-size: 1.1rem; margin-top: 4px;">Private Rooftop Celebration</p>
+            </div>
+            <button onclick="handleLogout()" class="btn btn-secondary btn-sm logout-btn">Log Out</button>
+        </header>
+
+        <!-- Stats Overview Row -->
+        <section class="stats-grid">
+            <div class="stat-card glass-panel">
+                <span class="stat-label">Total Registered</span>
+                <span id="stat-total" class="stat-value">0</span>
+            </div>
+            <div class="stat-card glass-panel">
+                <span class="stat-label">Checked In</span>
+                <span id="stat-checked-in" class="stat-value">0</span>
+            </div>
+            <div class="stat-card glass-panel">
+                <span class="stat-label">Capacity Utilized</span>
+                <span id="stat-capacity" class="stat-value">0%</span>
+                <div class="capacity-gauge">
+                    <div id="capacity-bar" class="capacity-fill"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Content Grid -->
+        <div class="grid-cols-2">
+            
+            <!-- Left Side: Config & Add Guest -->
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+                
+                <!-- Event Configuration Card -->
+                <div class="glass-panel">
+                    <h3 style="margin-bottom: 18px;">Event Configuration</h3>
+                    <form id="config-form">
+                        <div class="form-group">
+                            <label class="form-label" for="config-name">Event Name</label>
+                            <input type="text" id="config-name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="config-venue">Venue</label>
+                            <input type="text" id="config-venue" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="config-time">Start Date & Time</label>
+                            <input type="datetime-local" id="config-time" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="config-capacity">Max Capacity</label>
+                            <input type="number" id="config-capacity" class="form-control" min="1" required>
+                        </div>
+                        <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="config-enforce" style="width: 18px; height: 18px; cursor: pointer;">
+                            <label for="config-enforce" style="cursor: pointer; font-size: 0.95rem; font-weight: 500;">Enforce capacity gate check-in limits</label>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm" style="width: 100%;">Update Event Config</button>
+                    </form>
+                </div>
+
+                <!-- Shared Scanner Access Token Card -->
+                <div class="glass-panel">
+                    <h3 style="margin-bottom: 8px;">Door Staff Scanner Link</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                        Distribute this link to scanner staff. It grants access to camera scanner without the admin password.
+                    </p>
+                    <div class="form-group">
+                        <input type="text" id="scanner-link-display" class="form-control" style="background: rgba(0,0,0,0.4); text-overflow: ellipsis;" readonly>
+                    </div>
+                    <button onclick="copyScannerLink()" class="btn btn-secondary btn-sm" style="width: 100%;">Copy Secure Scanner URL</button>
+                </div>
+            </div>
+
+            <!-- Right Side: Guest Management -->
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+                
+                <!-- Register Single Guest -->
+                <div class="glass-panel">
+                    <h3 style="margin-bottom: 18px;">Register Guest</h3>
+                    <form id="add-guest-form">
+                        <div class="form-group">
+                            <label class="form-label" for="guest-name-input">Full Name</label>
+                            <input type="text" id="guest-name-input" class="form-control" placeholder="e.g. John Doe" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="guest-email-input">Email Address</label>
+                            <input type="email" id="guest-email-input" class="form-control" placeholder="e.g. john@example.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="guest-tier-select">Ticket Tier</label>
+                            <select id="guest-tier-select" class="form-control">
+                                <option value="general">General Admission</option>
+                                <option value="vip">VIP Guest</option>
+                                <option value="staff">Staff/Organizer</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm" style="width: 100%;">Generate Secure Ticket</button>
+                    </form>
+                </div>
+
+                <!-- CSV Bulk Import -->
+                <div class="glass-panel">
+                    <h3 style="margin-bottom: 8px;">Bulk Guest Import</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                        Upload a CSV list (first column <strong>Name</strong>, second column <strong>Email</strong>, optional third column <strong>Tier</strong>). No header is required.
+                    </p>
+                    <div class="file-upload-drag" id="csv-drop-area" onclick="triggerFileInput()">
+                        <span id="upload-label" style="font-weight: 500;">Drop guest CSV file here, or click to upload</span>
+                        <input type="file" id="csv-file-input" style="display: none;" accept=".csv" onchange="handleCsvFile(event)">
+                    </div>
+                    <div id="csv-errors" style="display: none;"></div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Guest List Database Table (Wide Panel) -->
+        <section class="glass-panel" style="margin-top: 24px;">
+            <div class="guest-search-row">
+                <h3 style="flex-grow: 1; align-self: center;">Registered Guests</h3>
+                <input type="text" id="guest-search" class="form-control" placeholder="Search guests by name/email..." style="max-width: 300px;" oninput="filterGuestTable()">
+            </div>
+            
+            <div class="table-container">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Guest Details</th>
+                            <th>Tier</th>
+                            <th>Status</th>
+                            <th>Scanned Time</th>
+                            <th style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="guest-table-body">
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px;">Loading guest list database...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </div>
+
+    <script src="js/admin.js"></script>
+</body>
+</html>
