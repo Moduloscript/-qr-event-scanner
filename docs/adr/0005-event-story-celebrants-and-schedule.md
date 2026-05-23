@@ -1,22 +1,22 @@
 # ADR 0005: Event Story — Celebrant Photos and Order-of-Event Schedule
 
-**Status:** Accepted
+**Status:** Superseded by ADR 0006
 
 **Date:** 2026-05-22
 
 ## Context
 
-The QR Code Event Access System handles guest check-in but provides no context about the event's celebrants or program. When a guest arrives or views their ticket, they see only event name, venue, and time. The check-in experience is purely transactional — scan, beep, admit — with no personal touch.
+The original QR Code Event Access System handled guest check-in but provided no context about the event's celebrants or program. When a guest arrived or viewed their ticket, they saw only event name, venue, and time. The check-in experience was purely transactional — scan, beep, admit — with no personal touch.
 
-The organizer needs to:
+The organizer needed to:
 
-1. Show celebrant photos (e.g., bride/groom, birthday person) with names and roles so guests feel connected to the people being celebrated.
+1. Show celebrant photos (e.g., birthday person) with names and roles so guests feel connected to the people being celebrated.
 2. Display the order-of-event schedule so guests know the program flow.
 3. Present this information in three touchpoints: admin configuration, guest ticket page, and scanner success overlay.
 
 ## Decision
 
-We will implement an **Event Story** feature with the following architectural choices:
+We implemented an **Event Story** feature with the following architectural choices:
 
 ### 1. Schema Extension (No New Table)
 
@@ -38,9 +38,9 @@ Celebrant photos are stored as base64 data URIs (`data:image/jpeg;base64,...`) d
 - **Consistency:** The existing codebase has no file upload infrastructure. Introducing one for 2-5 small celebrant headshots is disproportionate complexity.
 - **Trade-off acknowledged:** Base64 encoding adds ~33% overhead. For 5 photos at ~100KB each, this is ~165KB extra — negligible for a single-event SQLite database.
 
-### 3. Three-Touchpoint Display
+### 3. Touchpoint Display (Original — Now Reduced)
 
-The Event Story data is rendered in three distinct locations:
+The Event Story data was originally rendered in three distinct locations:
 
 | Touchpoint    | Location                                                | Purpose                                             |
 | ------------- | ------------------------------------------------------- | --------------------------------------------------- |
@@ -48,15 +48,14 @@ The Event Story data is rendered in three distinct locations:
 | Guest Ticket  | `GET /api/event/info` → `ticket.html`                   | Guest sees celebrants + schedule below QR code      |
 | Scanner VALID | `POST /api/scanner/validate` response → scanner overlay | Door staff sees celebrant photos on successful scan |
 
-**Rationale:** Each touchpoint serves a different emotional need — setup (organizer control), anticipation (guest excitement), and welcome (door staff greeting). Reusing the same data source (`event_config` columns) ensures consistency across all three.
+**Note:** Per ADR 0006, the scanner and ticket touchpoints are removed. The Event Story now renders in two touchpoints: admin config panel (setup) and download page (guest viewing).
 
 ### 4. API Contract Changes
 
 - `GET /api/event/info` (public) — now returns `celebrants` and `schedule` arrays alongside existing fields.
 - `POST /api/admin/config` — accepts optional `celebrants` and `schedule` fields in the request body.
-- `POST /api/scanner/validate` VALID response — includes a `celebrants` array so the scanner UI can display photos.
 
-**Rationale:** No new endpoints are needed. The existing public event info endpoint is the natural home for this data. The scanner validate endpoint already returns guest context — adding celebrant data enriches the response without breaking existing clients.
+**Note:** The `POST /api/scanner/validate` endpoint is removed per ADR 0006.
 
 ## Consequences
 
@@ -64,7 +63,7 @@ The Event Story data is rendered in three distinct locations:
 
 - **Fully portable database** — celebrant photos travel with the database file.
 - **No new infrastructure** — no file upload middleware, no storage buckets, no CDN.
-- **Consistent data source** — one config update propagates to all three touchpoints automatically.
+- **Consistent data source** — one config update propagates to all touchpoints automatically.
 - **Backward compatible** — existing API consumers ignore the new fields. Old configs without `celebrants_json`/`event_schedule_json` render empty arrays.
 
 ### Negative

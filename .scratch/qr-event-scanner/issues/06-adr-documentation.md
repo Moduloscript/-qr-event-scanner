@@ -1,4 +1,6 @@
-Status: ready-for-human
+> **SUPERSEDED** — This issue belongs to the original Access Control architecture. Per [ADR 0006](../../../docs/adr/0006-architecture-pivot-to-information-qr.md), the project has pivoted to a Birthday Information QR scope. The ADRs for the old architecture are superseded by ADR 0006.
+
+Status: superseded
 
 ## What to build
 

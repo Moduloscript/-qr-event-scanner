@@ -1,6 +1,4 @@
 let adminPassword = "";
-let allGuests = [];
-let maxCapacity = 100;
 
 document.addEventListener("DOMContentLoaded", () => {
   // Check Session Auth
@@ -32,10 +30,20 @@ document.addEventListener("DOMContentLoaded", () => {
     .getElementById("config-form")
     .addEventListener("submit", handleConfigUpdate);
 
-  // Add Guest Form Listener
+  // PDF Upload Listener
   document
-    .getElementById("add-guest-form")
-    .addEventListener("submit", handleAddGuest);
+    .getElementById("pdf-file-input")
+    .addEventListener("change", handlePdfFileSelect);
+
+  // Generate QR Button Listener
+  document
+    .getElementById("generate-qr-btn")
+    .addEventListener("click", generateQrCode);
+
+  // Reset Event Button Listener
+  document
+    .getElementById("reset-event-btn")
+    .addEventListener("click", handleResetEvent);
 });
 
 // Test password and initialize dashboard
@@ -56,7 +64,6 @@ async function testAuthAndInit() {
       // Initial data pull
       const data = await response.json();
       loadConfigFields(data);
-      await loadGuestsData();
       return true;
     }
   } catch (err) {
@@ -82,16 +89,468 @@ function loadConfigFields(config) {
   document.getElementById("config-name").value = config.event_name;
   document.getElementById("config-venue").value = config.venue;
   document.getElementById("config-time").value = config.start_time;
-  document.getElementById("config-capacity").value = config.max_capacity;
-  document.getElementById("config-enforce").checked =
-    config.enforce_capacity === 1;
 
-  maxCapacity = parseInt(config.max_capacity);
+  // PDF status — persists across reloads (stored in DB)
+  if (config.program_pdf) {
+    const sizeKb = Math.round((config.program_pdf.length * 0.75) / 1024);
+    document.getElementById("pdf-status").textContent =
+      `PDF uploaded (${sizeKb} KB)`;
+    document.getElementById("pdf-status").style.display = "inline";
+    document.getElementById("pdf-replace-btn").style.display = "inline";
+    document.getElementById("pdf-file-input").style.display = "none";
+  } else {
+    document.getElementById("pdf-status").style.display = "none";
+    document.getElementById("pdf-replace-btn").style.display = "none";
+    document.getElementById("pdf-file-input").style.display = "block";
+  }
 
-  // Render door scanner link
-  const host = window.location.origin;
-  const scannerUrl = `${host}/scanner.html?token=${config.scanner_token}`;
-  document.getElementById("scanner-link-display").value = scannerUrl;
+  // Auto-generate QR code if event is configured — persists across reloads
+  generateQrCode();
+
+  // Render Event Story fields
+  loadEventStoryFields(config);
+}
+
+// -------------------------------------------------------------
+// PDF UPLOAD
+// -------------------------------------------------------------
+let pendingPdfDataUri = null;
+
+function handlePdfFileSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (file.type !== "application/pdf") {
+    alert("Please select a PDF file.");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    pendingPdfDataUri = evt.target.result;
+    const sizeKb = Math.round(file.size / 1024);
+    document.getElementById("pdf-status").textContent =
+      `Selected: ${file.name} (${sizeKb} KB) — click "Upload PDF" to save`;
+    document.getElementById("pdf-status").style.display = "inline";
+  };
+  reader.onerror = function () {
+    console.error("FileReader failed to read the selected PDF.");
+  };
+  reader.readAsDataURL(file);
+}
+
+function replacePdf() {
+  pendingPdfDataUri = null;
+  document.getElementById("pdf-status").style.display = "none";
+  document.getElementById("pdf-replace-btn").style.display = "none";
+  document.getElementById("pdf-file-input").value = "";
+  document.getElementById("pdf-file-input").style.display = "block";
+  document.getElementById("pdf-file-input").click();
+}
+
+// -------------------------------------------------------------
+// PDF UPLOAD — dedicated save button
+// -------------------------------------------------------------
+async function handleUploadPdf() {
+  if (!pendingPdfDataUri) {
+    alert("Please select a PDF file first.");
+    return;
+  }
+
+  // Fetch current config to preserve existing event_name, venue, start_time
+  try {
+    const confRes = await fetch("/api/admin/config", {
+      headers: { "x-admin-password": adminPassword },
+    });
+    if (!confRes.ok) {
+      alert("Failed to load current config. Please refresh the page.");
+      return;
+    }
+    const currentConfig = await confRes.json();
+    if (!currentConfig) {
+      alert("No event configuration found. Please set up the event first.");
+      return;
+    }
+
+    const body = {
+      event_name: currentConfig.event_name,
+      venue: currentConfig.venue,
+      start_time: currentConfig.start_time,
+      program_pdf: pendingPdfDataUri,
+    };
+
+    const response = await fetch("/api/admin/config", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-password": adminPassword,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (response.ok) {
+      alert("PDF uploaded successfully!");
+      pendingPdfDataUri = null;
+      // Refresh to show updated status
+      const refreshRes = await fetch("/api/admin/config", {
+        headers: { "x-admin-password": adminPassword },
+      });
+      const data = await refreshRes.json();
+      loadConfigFields(data);
+    } else {
+      const errData = await response.json();
+      alert(`Error: ${errData.error}`);
+    }
+  } catch (err) {
+    alert(`Failed to upload PDF: ${err.message}`);
+  }
+}
+
+// -------------------------------------------------------------
+// EVENT STORY — dedicated save button
+// -------------------------------------------------------------
+async function handleSaveEventStory() {
+  const celebrants = collectCelebrantsData();
+  const schedule = collectScheduleData();
+
+  // Fetch current config to preserve existing event_name, venue, start_time
+  try {
+    const confRes = await fetch("/api/admin/config", {
+      headers: { "x-admin-password": adminPassword },
+    });
+    if (!confRes.ok) {
+      alert("Failed to load current config. Please refresh the page.");
+      return;
+    }
+    const currentConfig = await confRes.json();
+    if (!currentConfig) {
+      alert("No event configuration found. Please set up the event first.");
+      return;
+    }
+
+    const body = {
+      event_name: currentConfig.event_name,
+      venue: currentConfig.venue,
+      start_time: currentConfig.start_time,
+      celebrants,
+      schedule,
+    };
+
+    const response = await fetch("/api/admin/config", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-password": adminPassword,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (response.ok) {
+      alert("Event Story saved successfully!");
+      // Refresh to show updated data
+      const refreshRes = await fetch("/api/admin/config", {
+        headers: { "x-admin-password": adminPassword },
+      });
+      const data = await refreshRes.json();
+      loadConfigFields(data);
+    } else {
+      const errData = await response.json();
+      alert(`Error: ${errData.error}`);
+    }
+  } catch (err) {
+    alert(`Failed to save Event Story: ${err.message}`);
+  }
+}
+
+// -------------------------------------------------------------
+// QR CODE GENERATION
+// -------------------------------------------------------------
+let cachedPublicUrl = null;
+
+async function getPublicUrl() {
+  if (cachedPublicUrl) return cachedPublicUrl;
+  try {
+    const res = await fetch("/api/config/public-url");
+    const data = await res.json();
+    cachedPublicUrl = data.publicUrl;
+    return cachedPublicUrl;
+  } catch {
+    // Fallback to window location
+    cachedPublicUrl = window.location.origin;
+    return cachedPublicUrl;
+  }
+}
+
+async function generateQrCode() {
+  const qrContainer = document.getElementById("qr-code-display");
+  const baseUrl = await getPublicUrl();
+  const downloadPageUrl = baseUrl + "/download.html";
+
+  // Clear previous QR
+  qrContainer.innerHTML = "";
+
+  // Generate QR using the local qrcode.min.js library
+  new QRCode(qrContainer, {
+    text: downloadPageUrl,
+    width: 200,
+    height: 200,
+    colorDark: "#ffffff",
+    colorLight: "transparent",
+    correctLevel: QRCode.CorrectLevel.H,
+  });
+
+  // Show download info
+  document.getElementById("qr-info").textContent =
+    "Scan this QR code to access the birthday download page";
+  document.getElementById("qr-info").style.display = "block";
+}
+
+// -------------------------------------------------------------
+// EVENT STORY — CELEBRANTS & SCHEDULE
+// -------------------------------------------------------------
+let celebrantCount = 0;
+let scheduleCount = 0;
+
+function loadEventStoryFields(config) {
+  const celebrants = config.celebrants || [];
+  const schedule = config.schedule || [];
+
+  // Render celebrants
+  const container = document.getElementById("celebrants-container");
+  container.innerHTML = "";
+  celebrantCount = 0;
+  celebrants.forEach((c) => addCelebrantEntry(c));
+
+  // Render schedule
+  const sContainer = document.getElementById("schedule-container");
+  sContainer.innerHTML = "";
+  scheduleCount = 0;
+  schedule.forEach((s) => addScheduleEntry(s));
+}
+
+function addCelebrantEntry(data) {
+  if (celebrantCount >= 10) {
+    document.getElementById("celebrant-limit-msg").style.display = "block";
+    document.getElementById("add-celebrant-btn").style.display = "none";
+    return;
+  }
+
+  const idx = celebrantCount;
+  const container = document.getElementById("celebrants-container");
+  const div = document.createElement("div");
+  div.className = "celebrant-entry";
+  div.id = `celebrant-entry-${idx}`;
+
+  const name = data ? escapeHTML(data.name) : "";
+  const role = data ? escapeHTML(data.role) : "";
+  const photo = data ? data.photo : "";
+
+  div.innerHTML = `
+    <input type="file" accept="image/jpeg,image/png,image/webp" class="photo-file-input" id="celebrant-photo-input-${idx}">
+    ${
+      photo
+        ? `<img class="celebrant-photo-preview" id="celebrant-photo-preview-${idx}" src="${escapeHTML(photo)}" alt="Photo">`
+        : `<div class="celebrant-photo-placeholder" id="celebrant-photo-placeholder-${idx}">Click to<br>add photo</div>`
+    }
+    <div class="celebrant-fields">
+      <input type="text" class="form-control" placeholder="Full name" id="celebrant-name-${idx}" value="${name}" style="font-size: 0.9rem;">
+      <input type="text" class="form-control" placeholder="Role (e.g. Celebrant)" id="celebrant-role-${idx}" value="${role}" style="font-size: 0.9rem;">
+    </div>
+    <button type="button" class="celebrant-remove" id="celebrant-remove-${idx}" title="Remove celebrant">&times;</button>
+  `;
+
+  // Attach event listeners after DOM insertion for reliability
+  const fileInput = div.querySelector(`#celebrant-photo-input-${idx}`);
+  if (fileInput) {
+    fileInput.addEventListener("change", function () {
+      handleCelebrantPhoto(this.files[0], idx);
+    });
+  }
+
+  const placeholderDiv = div.querySelector(
+    `#celebrant-photo-placeholder-${idx}`,
+  );
+  if (placeholderDiv) {
+    placeholderDiv.addEventListener("click", function () {
+      const input = document.getElementById(`celebrant-photo-input-${idx}`);
+      if (input) input.click();
+    });
+    placeholderDiv.style.cursor = "pointer";
+  }
+
+  const removeBtn = div.querySelector(`#celebrant-remove-${idx}`);
+  if (removeBtn) {
+    removeBtn.addEventListener("click", function () {
+      removeCelebrantEntry(idx);
+    });
+  }
+
+  container.appendChild(div);
+  celebrantCount++;
+}
+
+function handleCelebrantPhoto(file, idx) {
+  if (!file) return;
+
+  // Validate file type
+  const allowed = ["image/jpeg", "image/png", "image/webp"];
+  if (!allowed.includes(file.type)) {
+    alert("Please select a JPEG, PNG, or WebP image.");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUri = e.target.result;
+
+    // Store the data URI on the input element for later collection
+    const input = document.getElementById(`celebrant-photo-input-${idx}`);
+    if (input) {
+      input.dataset.base64 = dataUri;
+    }
+
+    // Replace placeholder with preview image using DOM methods (not outerHTML)
+    const placeholder = document.getElementById(
+      `celebrant-photo-placeholder-${idx}`,
+    );
+    const existingImg = document.getElementById(
+      `celebrant-photo-preview-${idx}`,
+    );
+
+    if (placeholder && placeholder.parentNode) {
+      const img = document.createElement("img");
+      img.className = "celebrant-photo-preview";
+      img.id = `celebrant-photo-preview-${idx}`;
+      img.src = dataUri;
+      img.alt = "Photo";
+      placeholder.parentNode.replaceChild(img, placeholder);
+    } else if (existingImg) {
+      existingImg.src = dataUri;
+    }
+  };
+  reader.onerror = function () {
+    console.error("FileReader failed to read the selected image.");
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeCelebrantEntry(idx) {
+  const entry = document.getElementById(`celebrant-entry-${idx}`);
+  if (entry) {
+    entry.remove();
+    celebrantCount--;
+    // Re-enable add button if under limit
+    if (celebrantCount < 10) {
+      const limitMsg = document.getElementById("celebrant-limit-msg");
+      const addBtn = document.getElementById("add-celebrant-btn");
+      if (limitMsg) limitMsg.style.display = "none";
+      if (addBtn) addBtn.style.display = "";
+    }
+  }
+}
+
+function addScheduleEntry(data) {
+  const idx = scheduleCount;
+  const container = document.getElementById("schedule-container");
+  const div = document.createElement("div");
+  div.className = "schedule-entry";
+  div.id = `schedule-entry-${idx}`;
+
+  const time = data ? escapeHTML(data.time) : "";
+  const title = data ? escapeHTML(data.title) : "";
+  const description = data ? escapeHTML(data.description || "") : "";
+
+  div.innerHTML = `
+    <div class="schedule-move">
+      <button type="button" onclick="moveScheduleItem(${idx}, -1)" title="Move up">&uarr;</button>
+      <button type="button" onclick="moveScheduleItem(${idx}, 1)" title="Move down">&darr;</button>
+    </div>
+    <input type="text" class="form-control schedule-time-input" placeholder="16:00" id="schedule-time-${idx}" value="${time}">
+    <div class="schedule-fields">
+      <input type="text" class="form-control" placeholder="Title" id="schedule-title-${idx}" value="${title}" style="font-size: 0.9rem;">
+      <textarea class="form-control" placeholder="Description (optional)" id="schedule-desc-${idx}" rows="2" style="font-size: 0.85rem; resize: vertical;">${description}</textarea>
+    </div>
+    <button type="button" class="schedule-remove" onclick="removeScheduleEntry(${idx})" title="Remove item">&times;</button>
+  `;
+
+  container.appendChild(div);
+  scheduleCount++;
+}
+
+function removeScheduleEntry(idx) {
+  const entry = document.getElementById(`schedule-entry-${idx}`);
+  if (entry) {
+    entry.remove();
+    scheduleCount--;
+  }
+}
+
+function moveScheduleItem(idx, direction) {
+  const entry = document.getElementById(`schedule-entry-${idx}`);
+  if (!entry) return;
+
+  const container = document.getElementById("schedule-container");
+  const siblings = Array.from(container.children);
+  const currentPos = siblings.indexOf(entry);
+  const newPos = currentPos + direction;
+
+  if (newPos < 0 || newPos >= siblings.length) return;
+
+  if (direction === -1) {
+    container.insertBefore(entry, siblings[newPos]);
+  } else {
+    container.insertBefore(entry, siblings[newPos + 1]);
+  }
+}
+
+function collectCelebrantsData() {
+  const celebrants = [];
+  const entries = document.querySelectorAll(".celebrant-entry");
+  entries.forEach((entry) => {
+    // Find inputs within this entry using DOM traversal (not index-based)
+    const fileInput = entry.querySelector('input[type="file"]');
+    const nameInput = entry.querySelector('input[id^="celebrant-name-"]');
+    const roleInput = entry.querySelector('input[id^="celebrant-role-"]');
+    const img = entry.querySelector('img[id^="celebrant-photo-preview-"]');
+
+    if (!nameInput || !roleInput) return;
+    const nameVal = nameInput.value.trim();
+    const roleVal = roleInput.value.trim();
+    if (!nameVal || !roleVal) return;
+
+    // Get photo: first check data attribute on file input, then img src
+    let photo = "";
+    if (fileInput && fileInput.dataset.base64) {
+      photo = fileInput.dataset.base64;
+    } else if (img && img.src && img.src.startsWith("data:image/")) {
+      photo = img.src;
+    }
+
+    celebrants.push({ name: nameVal, role: roleVal, photo });
+  });
+  return celebrants;
+}
+
+function collectScheduleData() {
+  const schedule = [];
+  const entries = document.querySelectorAll(".schedule-entry");
+  entries.forEach((entry) => {
+    const timeInput = entry.querySelector('input[id^="schedule-time-"]');
+    const titleInput = entry.querySelector('input[id^="schedule-title-"]');
+    const descInput = entry.querySelector('textarea[id^="schedule-desc-"]');
+
+    if (!timeInput || !titleInput) return;
+    const timeVal = timeInput.value.trim();
+    const titleVal = titleInput.value.trim();
+    if (!timeVal || !titleVal) return;
+
+    schedule.push({
+      time: timeVal,
+      title: titleVal,
+      description: descInput ? descInput.value.trim() : "",
+    });
+  });
+  return schedule;
 }
 
 async function handleConfigUpdate(e) {
@@ -99,8 +558,24 @@ async function handleConfigUpdate(e) {
   const event_name = document.getElementById("config-name").value;
   const venue = document.getElementById("config-venue").value;
   const start_time = document.getElementById("config-time").value;
-  const max_capacity = document.getElementById("config-capacity").value;
-  const enforce_capacity = document.getElementById("config-enforce").checked;
+
+  // Collect Event Story data
+  const celebrants = collectCelebrantsData();
+  const schedule = collectScheduleData();
+
+  // Build body
+  const body = {
+    event_name,
+    venue,
+    start_time,
+    celebrants,
+    schedule,
+  };
+
+  // Include PDF if one was selected
+  if (pendingPdfDataUri) {
+    body.program_pdf = pendingPdfDataUri;
+  }
 
   try {
     const response = await fetch("/api/admin/config", {
@@ -109,13 +584,7 @@ async function handleConfigUpdate(e) {
         "Content-Type": "application/json",
         "x-admin-password": adminPassword,
       },
-      body: JSON.stringify({
-        event_name,
-        venue,
-        start_time,
-        max_capacity,
-        enforce_capacity,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (response.ok) {
@@ -126,7 +595,7 @@ async function handleConfigUpdate(e) {
       });
       const data = await confResponse.json();
       loadConfigFields(data);
-      await loadGuestsData();
+      pendingPdfDataUri = null;
     } else {
       const errData = await response.json();
       alert(`Error: ${errData.error}`);
@@ -136,344 +605,48 @@ async function handleConfigUpdate(e) {
   }
 }
 
-function copyScannerLink() {
-  const input = document.getElementById("scanner-link-display");
-  input.select();
-  input.setSelectionRange(0, 99999);
-  navigator.clipboard.writeText(input.value);
-  alert("Scanner link copied to clipboard!");
-}
-
-// -------------------------------------------------------------
-// GUEST MANAGEMENT
-// -------------------------------------------------------------
-async function loadGuestsData() {
-  try {
-    const response = await fetch("/api/admin/guests", {
-      headers: { "x-admin-password": adminPassword },
-    });
-
-    if (!response.ok) throw new Error("Failed to load guest list.");
-
-    const data = await response.json();
-    allGuests = data.guests;
-
-    // Update stats
-    document.getElementById("stat-total").textContent = data.stats.total;
-    document.getElementById("stat-checked-in").textContent = data.stats.scanned;
-
-    const percent =
-      maxCapacity > 0
-        ? Math.min(100, Math.round((data.stats.scanned / maxCapacity) * 100))
-        : 0;
-    document.getElementById("stat-capacity").textContent =
-      `${percent}% (${data.stats.scanned}/${maxCapacity})`;
-
-    const bar = document.getElementById("capacity-bar");
-    bar.style.width = `${percent}%`;
-    if (percent >= 90) {
-      bar.classList.add("high");
-    } else {
-      bar.classList.remove("high");
-    }
-
-    renderGuestTable(allGuests);
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-function renderGuestTable(guests) {
-  const tbody = document.getElementById("guest-table-body");
-
-  if (guests.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px;">No registered guests found.</td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = guests
-    .map((guest) => {
-      const dateStr = guest.scanned_at
-        ? new Date(guest.scanned_at).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "--:--";
-      const ticketUrl = `/ticket.html?id=${guest.id}&name=${encodeURIComponent(guest.name)}&sig=${guest.signature}&tier=${encodeURIComponent(guest.ticket_tier)}`;
-
-      return `
-            <tr>
-                <td>
-                    <div style="font-weight: 600;">${escapeHTML(guest.name)}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHTML(guest.email)}</div>
-                </td>
-                <td>
-                    <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase;">${escapeHTML(guest.ticket_tier)}</span>
-                </td>
-                <td>
-                    ${
-                      guest.is_scanned === 1
-                        ? `<span class="badge badge-success">Checked In</span>`
-                        : `<span class="badge badge-error">Not Checked In</span>`
-                    }
-                </td>
-                <td>
-                    <span style="font-size: 0.9rem; color: var(--text-secondary);">${dateStr}</span>
-                </td>
-                <td style="text-align: right;">
-                    <div style="display: inline-flex; gap: 8px;">
-                        <a href="${ticketUrl}" target="_blank" class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 0.8rem;">Ticket</a>
-                        <button onclick="openEditModal('${guest.id}', '${escapeJS(guest.name)}', '${escapeJS(guest.email)}', '${escapeJS(guest.ticket_tier)}')" class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 0.8rem;">Edit</button>
-                        <button onclick="deleteGuest('${guest.id}', '${escapeJS(guest.name)}')" class="btn btn-danger btn-sm" style="padding: 6px 12px; font-size: 0.8rem;">Delete</button>
-                    </div>
-                </td>
-            </tr>
-        `;
-    })
-    .join("");
-}
-
-function filterGuestTable() {
-  const val = document
-    .getElementById("guest-search")
-    .value.toLowerCase()
-    .trim();
-  if (!val) {
-    renderGuestTable(allGuests);
-    return;
-  }
-
-  const filtered = allGuests.filter(
-    (g) =>
-      g.name.toLowerCase().includes(val) ||
-      g.email.toLowerCase().includes(val) ||
-      g.ticket_tier.toLowerCase().includes(val),
-  );
-  renderGuestTable(filtered);
-}
-
-async function handleAddGuest(e) {
-  e.preventDefault();
-  const name = document.getElementById("guest-name-input").value;
-  const email = document.getElementById("guest-email-input").value;
-  const ticket_tier = document.getElementById("guest-tier-select").value;
-
-  try {
-    const response = await fetch("/api/admin/guests", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-password": adminPassword,
-      },
-      body: JSON.stringify({ name, email, ticket_tier }),
-    });
-
-    if (response.ok) {
-      document.getElementById("guest-name-input").value = "";
-      document.getElementById("guest-email-input").value = "";
-      document.getElementById("guest-tier-select").value = "general";
-      await loadGuestsData();
-    } else {
-      const errData = await response.json();
-      alert(`Error: ${errData.error}`);
-    }
-  } catch (err) {
-    alert(`Failed to add guest: ${err.message}`);
-  }
-}
-
-async function deleteGuest(id, name) {
+// 4. Reset/Delete Event Configuration
+async function handleResetEvent() {
   if (
     !confirm(
-      `Are you sure you want to delete guest: "${name}"? This removes ticket authorization.`,
+      "Are you sure you want to delete ALL event data? This cannot be undone.",
     )
   ) {
     return;
   }
-
+  if (
+    !confirm(
+      "Really? All celebrant photos, schedule, PDF, and event info will be permanently deleted.",
+    )
+  ) {
+    return;
+  }
   try {
-    const response = await fetch(`/api/admin/guests/${id}`, {
+    const response = await fetch("/api/admin/config", {
       method: "DELETE",
       headers: { "x-admin-password": adminPassword },
     });
-
     if (response.ok) {
-      await loadGuestsData();
+      alert("Event data has been reset. The page will now reload.");
+      location.reload();
     } else {
       const errData = await response.json();
       alert(`Error: ${errData.error}`);
     }
   } catch (err) {
-    alert(`Failed to delete guest: ${err.message}`);
+    alert(`Failed to reset event: ${err.message}`);
   }
-}
-
-// -------------------------------------------------------------
-// GUEST EDIT MODAL
-// -------------------------------------------------------------
-function openEditModal(id, name, email, ticketTier) {
-  document.getElementById("edit-guest-id").value = id;
-  document.getElementById("edit-guest-name").value = name;
-  document.getElementById("edit-guest-email").value = email;
-  document.getElementById("edit-guest-tier").value = ticketTier;
-  document.getElementById("edit-modal-error").style.display = "none";
-  document.getElementById("edit-modal").classList.add("active");
-}
-
-function closeEditModal() {
-  document.getElementById("edit-modal").classList.remove("active");
-}
-
-// Attach edit form listener
-document
-  .getElementById("edit-guest-form")
-  .addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const id = document.getElementById("edit-guest-id").value;
-    const name = document.getElementById("edit-guest-name").value;
-    const email = document.getElementById("edit-guest-email").value;
-    const ticket_tier = document.getElementById("edit-guest-tier").value;
-    const errorDiv = document.getElementById("edit-modal-error");
-
-    try {
-      const response = await fetch(`/api/admin/guests/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-password": adminPassword,
-        },
-        body: JSON.stringify({ name, email, ticket_tier }),
-      });
-
-      if (response.ok) {
-        closeEditModal();
-        await loadGuestsData();
-      } else {
-        const errData = await response.json();
-        errorDiv.textContent = errData.error || "Failed to update guest";
-        errorDiv.style.display = "block";
-      }
-    } catch (err) {
-      errorDiv.textContent = `Network error: ${err.message}`;
-      errorDiv.style.display = "block";
-    }
-  });
-
-// -------------------------------------------------------------
-// CSV BULK UPLOAD HANDLERS
-// -------------------------------------------------------------
-function triggerFileInput() {
-  document.getElementById("csv-file-input").click();
-}
-
-function handleCsvFile(e) {
-  const file = e.target.files[0];
-  if (file) {
-    processCsvFile(file);
-  }
-}
-
-// Drag & drop handlers
-const dropArea = document.getElementById("csv-drop-area");
-
-["dragenter", "dragover"].forEach((eventName) => {
-  dropArea.addEventListener(
-    eventName,
-    (e) => {
-      e.preventDefault();
-      dropArea.style.borderColor = "var(--border-focus)";
-    },
-    false,
-  );
-});
-
-["dragleave", "drop"].forEach((eventName) => {
-  dropArea.addEventListener(
-    eventName,
-    (e) => {
-      e.preventDefault();
-      dropArea.style.borderColor = "var(--border-color)";
-    },
-    false,
-  );
-});
-
-dropArea.addEventListener("drop", (e) => {
-  const dt = e.dataTransfer;
-  const file = dt.files[0];
-  if (file) {
-    processCsvFile(file);
-  }
-});
-
-function processCsvFile(file) {
-  const reader = new FileReader();
-  const label = document.getElementById("upload-label");
-
-  label.textContent = `Uploading "${file.name}"...`;
-
-  reader.onload = async (e) => {
-    const text = e.target.result;
-    try {
-      const response = await fetch("/api/admin/guests/bulk", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-password": adminPassword,
-        },
-        body: JSON.stringify({ csvData: text }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        let statusMsg = `Successfully imported ${data.successCount} guests.`;
-
-        // Show errors if some rows failed
-        const errDiv = document.getElementById("csv-errors");
-        if (data.errors && data.errors.length > 0) {
-          errDiv.style.display = "block";
-          errDiv.innerHTML = `
-                        <div class="csv-error-list">
-                            <strong>Import warnings (${data.errors.length} failed rows):</strong>
-                            <ul style="margin-top: 6px; padding-left: 16px;">
-                                ${data.errors.map((err) => `<li>${escapeHTML(err)}</li>`).join("")}
-                            </ul>
-                        </div>
-                    `;
-          statusMsg += ` (${data.errors.length} rows rejected)`;
-        } else {
-          errDiv.style.display = "none";
-        }
-
-        alert(statusMsg);
-        label.textContent = `Drop guest CSV file here, or click to upload`;
-        await loadGuestsData();
-      } else {
-        alert(`Upload failed: ${data.error}`);
-        label.textContent = `Upload failed. Try again.`;
-      }
-    } catch (err) {
-      alert(`Network error uploading file: ${err.message}`);
-      label.textContent = `Upload failed. Try again.`;
-    }
-  };
-  reader.readAsText(file);
 }
 
 // Helpers
 function escapeHTML(str) {
   if (!str) return "";
-  return str.replace(
-    /[&<>'"]/g,
-    (tag) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[
-        tag
-      ] || tag,
-  );
-}
-
-function escapeJS(str) {
-  if (!str) return "";
-  return str.replace(/'/g, "\\'");
+  const map = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;",
+  };
+  return str.replace(/[&<>"']/g, (tag) => map[tag] || tag);
 }

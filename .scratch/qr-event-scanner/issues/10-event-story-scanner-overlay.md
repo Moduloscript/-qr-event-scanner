@@ -1,4 +1,6 @@
-Status: ready-for-agent
+> **SUPERSEDED** — This issue belongs to the original Access Control architecture. Per [ADR 0006](../../../docs/adr/0006-architecture-pivot-to-information-qr.md), the project has pivoted to a Birthday Information QR scope. The scanner overlay is no longer needed — the scanner feature is entirely removed.
+
+Status: superseded
 
 ## What to build
 
@@ -35,7 +37,8 @@ This is the **scanner frontend** slice. It builds on the API from issue 07.
 
 ## Blocked by
 
-Issue 07 (Event Story DB Schema + API)
+Issue 07 (Event Story DB Schema + API) — ✅ resolved
+Issue 08 (Event Story Admin UI) — ✅ resolved
 
 ## Notes
 

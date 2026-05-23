@@ -1,18 +1,18 @@
-# AGENTS.md — QR Code Event Access System
+# AGENTS.md — QR Code Birthday Information System
 
 ## Project Context
 
-This repository contains the codebase and requirements for a lightweight, secure **Single-Event QR Code Access System** that allows organizers to manage guest check-ins.
+This repository contains the codebase and requirements for a lightweight **Single-Birthday QR Information System** that lets the organizer publish a birthday program PDF and celebrant information behind a single QR code for guests to download.
 
 ## Key Documents
 
-| File                                                       | Purpose                                                                    |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------- |
-| [`PRD.md`](PRD.md)                                         | Core product requirements, database schema design, cryptographic protocols |
-| [`verify.js`](verify.js)                                   | Automated endpoint integration verification tests                          |
-| [`.scratch/qr-event-scanner/`](.scratch/qr-event-scanner/) | Issue tracker — PRD-derived vertical-slice issues                          |
-| [`.roomodes`](.roomodes)                                   | Project-specific Zoo Code mode definitions                                 |
-| [`CONTEXT.md`](CONTEXT.md)                                 | Domain glossary and project context                                        |
+| File                                                       | Purpose                                                          |
+| ---------------------------------------------------------- | ---------------------------------------------------------------- |
+| [`PRD.md`](PRD.md)                                         | Core product requirements, database schema design, API contracts |
+| [`verify.js`](verify.js)                                   | Automated endpoint integration verification tests                |
+| [`.scratch/qr-event-scanner/`](.scratch/qr-event-scanner/) | Issue tracker — PRD-derived vertical-slice issues                |
+| [`.roomodes`](.roomodes)                                   | Project-specific Zoo Code mode definitions                       |
+| [`CONTEXT.md`](CONTEXT.md)                                 | Domain glossary and project context                              |
 
 ## Development Workflow
 
@@ -34,12 +34,12 @@ See [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md) for the full 
 
 ## Important Conventions
 
-- **Cryptographic Security First**: Always verify HMAC-SHA256 signatures of QR codes offline _before_ performing database updates to prevent overhead and denial-of-service from tampered payloads.
-- **Master Authentication**: Use simple environment secrets (`ADMIN_PASSWORD`, `SCANNER_TOKEN`, `SIGNING_KEY`) rather than multi-user table schemes.
-- **Sensory Feedback**: Scanner pages must play success (high-pitched beep) and error (double-buzz) sounds via the browser Web Audio API to facilitate rapid check-ins in loud environments.
+- **Master Authentication**: Use a simple environment secret (`ADMIN_PASSWORD`) to protect the admin settings panel.
 - **Zero External Assets**: Maintain the self-contained Web Audio API synthesizer instead of downloading audio files.
-- **Event Story (Celebrants + Schedule)**: Celebrant photos are stored as base64 data URIs in `event_config.celebrants_json` to keep the database fully portable. The order-of-event schedule is stored as JSON in `event_config.event_schedule_json`. Both are served via `GET /api/event/info` (public) and included in the `POST /api/scanner/validate` VALID response.
-- **Three-Touchpoint Display**: The Event Story feature renders celebrant photos and schedule in three places — admin config panel (setup), guest ticket page (anticipation), and scanner VALID overlay (warm greeting).
+- **Event Story (Celebrants + Schedule)**: Celebrant photos are stored as base64 data URIs in `event_config.celebrants_json` to keep the database fully portable. The order-of-event schedule is stored as JSON in `event_config.event_schedule_json`. Both are served via `GET /api/event/info` (public).
+- **Two-Touchpoint Display**: The Event Story feature renders celebrant photos and schedule in two places — admin config panel (setup) and download page (guest viewing).
+- **Base64 PDF Storage**: The birthday program PDF is stored as a base64 data URI in `event_config.program_pdf` for full portability.
+- **Static QR Code**: A single QR code pointing to the download page URL serves all guests. No per-guest ticket generation.
 
 ## TDD (Test-Driven Development) - MANDATORY
 

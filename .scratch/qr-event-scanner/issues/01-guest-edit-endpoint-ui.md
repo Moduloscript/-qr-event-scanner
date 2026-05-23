@@ -1,4 +1,6 @@
-Status: implemented
+> **SUPERSEDED** — This issue belongs to the original Access Control architecture. Per [ADR 0006](../../../docs/adr/0006-architecture-pivot-to-information-qr.md), the project has pivoted to a Birthday Information QR scope. Guest management features are no longer needed.
+
+Status: superseded
 
 ## What was built
 
