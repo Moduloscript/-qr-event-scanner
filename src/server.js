@@ -17,13 +17,18 @@ app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
 // Serve static assets from public folder
 app.use(express.static(path.join(__dirname, "../public")));
 
-// Public URL config for QR code generation (uses HOST from .env)
-// In production (Render), set HOST to https://your-app.onrender.com
-const PUBLIC_URL = process.env.HOST || `http://localhost:${PORT}`;
+// Public URL config for QR code generation
+// Priority: 1) HOST env var (explicit override), 2) X-Forwarded-Host / Host header (auto-detect)
+// On Render, the Host header is automatically set, so this works without manual config.
+const PUBLIC_URL = process.env.HOST || null;
 
 // Endpoint to expose the public URL to the frontend
 app.get("/api/config/public-url", (req, res) => {
-  res.json({ publicUrl: PUBLIC_URL });
+  // Use explicit HOST env var, or auto-detect from request headers
+  const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+  const host = req.headers["x-forwarded-host"] || req.headers["host"];
+  const publicUrl = PUBLIC_URL || `${protocol}://${host}`;
+  res.json({ publicUrl });
 });
 
 // ==========================================
