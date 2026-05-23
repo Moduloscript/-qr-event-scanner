@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birthday Program</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Google Fonts: Playfair Display (headings) + JetBrains Mono (times) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Playfair+Display:ital,wght@0,700;1,600&display=swap"
+        rel="stylesheet">
+    <!-- PDF.js for mobile-optimized inline PDF rendering -->
+    <script src="/js/pdf.min.js"></script>
+    <style>
+        /* ==========================================
+           WARM CELEBRATION THEME — Download Page Only
+           ========================================== */
+
+        /* ── Body Background Override ── */
+        body {
+            background-color: #0F0A0A !important;
+            background-image:
+                radial-gradient(ellipse at 50% 0%, rgba(245, 158, 11, 0.12) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 80%, rgba(244, 114, 182, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 20% 90%, rgba(251, 191, 36, 0.04) 0%, transparent 40%) !important;
+            background-attachment: fixed !important;
+        }
+
+        /* ── Container ambient glow behind card ── */
+        .container {
+            position: relative;
+        }
+
+        .container::before {
+            content: '';
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 500px;
+            height: 500px;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle, rgba(245, 158, 11, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Glass panel override for error state ── */
+        .error-message.glass-panel {
+            background: rgba(15, 10, 10, 0.85) !important;
+            backdrop-filter: blur(16px) !important;
+            -webkit-backdrop-filter: blur(16px) !important;
+            border-color: rgba(245, 158, 11, 0.12) !important;
+            position: relative;
+            z-index: 1;
+        }
+
+        .error-message.glass-panel::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            background: radial-gradient(ellipse at 50% 0%, rgba(245, 158, 11, 0.06) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        /* ── Loading state background ── */
+        .loading-state {
+            position: relative;
+            z-index: 1;
+            background: rgba(15, 10, 10, 0.6);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 247, 237, 0.04);
+            margin: 20px auto;
+            max-width: 520px;
+        }
+
+        /* ── SVG Icon Sizing ── */
+        .section-icon {
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .section-icon.lg {
+            width: 28px;
+            height: 28px;
+        }
+
+        /* ── Hero: Invitation Card ── */
+        .download-hero {
+            text-align: center;
+            padding: 48px 24px 32px;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1a0f0a 0%, #2d1a0e 40%, #1f0f12 100%);
+        }
+
+        .download-hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 40%, rgba(245, 158, 11, 0.08) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .download-hero::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.3), rgba(244, 114, 182, 0.3), transparent);
+        }
+
+        .hero-invite-label {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #F59E0B;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            animation: fade-down 0.6s ease 0.2s both;
+        }
+
+        .hero-event-name {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 2.2rem;
+            line-height: 1.15;
+            margin-bottom: 4px;
+            position: relative;
+            z-index: 1;
+            background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 40%, #F472B6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            opacity: 0;
+            animation: fade-down 0.6s ease 0.3s both;
+        }
+
+        .hero-divider {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin: 16px auto;
+            max-width: 200px;
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            animation: fade-down 0.6s ease 0.4s both;
+        }
+
+        .hero-divider-line {
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.4));
+        }
+
+        .hero-divider-line:last-child {
+            background: linear-gradient(90deg, rgba(245, 158, 11, 0.4), transparent);
+        }
+
+        .hero-divider-diamond {
+            width: 6px;
+            height: 6px;
+            background: #F59E0B;
+            transform: rotate(45deg);
+            flex-shrink: 0;
+        }
+
+        .hero-venue {
+            font-size: 1rem;
+            color: #FFF7ED;
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            animation: fade-down 0.6s ease 0.5s both;
+        }
+
+        .hero-date {
+            font-size: 0.85rem;
+            color: #A8A29E;
+            margin-top: 2px;
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            animation: fade-down 0.6s ease 0.55s both;
+        }
+
+        .hero-cta {
+            margin-top: 20px;
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            animation: fade-down 0.6s ease 0.6s both;
+        }
+
+        .hero-cta-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #F59E0B 0%, #F472B6 100%);
+            color: #0F0A0A;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 0.9rem;
+            padding: 12px 28px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .hero-cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px rgba(245, 158, 11, 0.45);
+        }
+
+        .hero-cta-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        @keyframes fade-down {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ── Download Button ── */
+        .download-btn-wrapper {
+            text-align: center;
+            margin: 24px 0 16px;
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, #F59E0B 0%, #F472B6 100%);
+            color: #0F0A0A;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            padding: 14px 32px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 6px 24px rgba(245, 158, 11, 0.3);
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 32px rgba(245, 158, 11, 0.45);
+        }
+
+        .download-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .download-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .no-pdf-msg {
+            text-align: center;
+            padding: 20px;
+            color: #A8A29E;
+            font-size: 0.9rem;
+            background: rgba(255, 247, 237, 0.02);
+            border: 1px dashed rgba(255, 247, 237, 0.1);
+            border-radius: 12px;
+            margin: 16px 0;
+        }
+
+        /* ── Celebrant Marquee Carousel ── */
+        .celebrant-carousel {
+            position: relative;
+            margin: 0 -8px 8px;
+            padding: 0;
+            overflow: hidden;
+            border-radius: 16px;
+            background: rgba(0, 0, 0, 0.2);
+            min-height: 260px;
+            touch-action: pan-y;
+        }
+
+        .celebrant-carousel-track {
+            display: flex;
+            transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            will-change: transform;
+        }
+
+        .celebrant-carousel-slide {
+            min-width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 20px 24px;
+            box-sizing: border-box;
+            position: relative;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* ── Portrait Frame ── */
+        .celebrant-frame {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .celebrant-frame-photo {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            object-fit: cover;
+            display: block;
+            border: 4px solid rgba(245, 158, 11, 0.3);
+            box-shadow:
+                0 0 30px rgba(245, 158, 11, 0.2),
+                0 8px 32px rgba(0, 0, 0, 0.4);
+            position: relative;
+            z-index: 1;
+            animation: marquee-glow 4s ease-in-out infinite;
+            image-rendering: auto;
+            -ms-interpolation-mode: bicubic;
+            transform: translateZ(0);
+            backface-visibility: hidden;
+        }
+
+        /* Decorative ring behind photo */
+        .celebrant-frame::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            right: -8px;
+            bottom: -8px;
+            border-radius: 50%;
+            background: conic-gradient(from 0deg, #F59E0B, #F472B6, #FBBF24, #F59E0B);
+            opacity: 0.35;
+            animation: frame-spin 8s linear infinite;
+            z-index: 0;
+        }
+
+        /* Outer ring */
+        .celebrant-frame::after {
+            content: '';
+            position: absolute;
+            top: -14px;
+            left: -14px;
+            right: -14px;
+            bottom: -14px;
+            border-radius: 50%;
+            border: 1px solid rgba(245, 158, 11, 0.12);
+            z-index: 0;
+        }
+
+        @keyframes frame-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes marquee-glow {
+
+            0%,
+            100% {
+                box-shadow:
+                    0 0 30px rgba(245, 158, 11, 0.2),
+                    0 8px 32px rgba(0, 0, 0, 0.4);
+            }
+
+            50% {
+                box-shadow:
+                    0 0 50px rgba(245, 158, 11, 0.3),
+                    0 8px 32px rgba(0, 0, 0, 0.4);
+            }
+        }
+
+        /* ── Crown Badge (larger) ── */
+        .celebrant-crown {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #F59E0B, #FBBF24);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 12px rgba(245, 158, 11, 0.6);
+            border: 3px solid #0F0A0A;
+            z-index: 2;
+            animation: crown-pulse 2s ease-in-out infinite;
+        }
+
+        .celebrant-crown svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        @keyframes crown-pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+        }
+
+        /* ── Slide Info ── */
+        .celebrant-slide-name {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 1.4rem;
+            text-align: center;
+            background: linear-gradient(135deg, #FBBF24, #F59E0B);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 2px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .celebrant-slide-role {
+            font-size: 0.9rem;
+            color: #A8A29E;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ── No-photo placeholder ── */
+        .celebrant-frame-placeholder {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #F59E0B, #F472B6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: #0F0A0A;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ── Page Dots ── */
+        .celebrant-dots {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            padding: 4px 0 12px;
+        }
+
+        .celebrant-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12);
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            transition: all 0.3s ease;
+        }
+
+        .celebrant-dot.active {
+            background: #F59E0B;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+            width: 24px;
+            border-radius: 4px;
+        }
+
+        .celebrant-dot:hover {
+            background: rgba(245, 158, 11, 0.4);
+        }
+
+        /* ── Nav Arrows ── */
+        .celebrant-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(15, 10, 10, 0.7);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            color: #F59E0B;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 5;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        .celebrant-nav:hover {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: rgba(245, 158, 11, 0.4);
+        }
+
+        .celebrant-nav:active {
+            transform: translateY(-50%) scale(0.92);
+        }
+
+        .celebrant-nav-prev {
+            left: 8px;
+        }
+
+        .celebrant-nav-next {
+            right: 8px;
+        }
+
+        .celebrant-nav svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 480px) {
+
+            .celebrant-frame-photo,
+            .celebrant-frame-placeholder {
+                width: 140px;
+                height: 140px;
+            }
+
+            .celebrant-carousel-slide {
+                padding: 24px 16px 20px;
+            }
+
+            .celebrant-slide-name {
+                font-size: 1.2rem;
+            }
+
+            .celebrant-crown {
+                width: 34px;
+                height: 34px;
+            }
+
+            .celebrant-crown svg {
+                width: 18px;
+                height: 18px;
+            }
+
+            .celebrant-nav {
+                width: 30px;
+                height: 30px;
+            }
+
+            .celebrant-nav svg {
+                width: 14px;
+                height: 14px;
+            }
+        }
+
+        /* ── Schedule Timeline: Bold ── */
+        .schedule-timeline {
+            position: relative;
+            padding-left: 36px;
+            margin: 8px 0;
+        }
+
+        .schedule-timeline::before {
+            content: '';
+            position: absolute;
+            left: 11px;
+            top: 8px;
+            bottom: 8px;
+            width: 4px;
+            background: linear-gradient(180deg, #F59E0B, #F472B6, transparent);
+            border-radius: 2px;
+        }
+
+        .schedule-item {
+            position: relative;
+            padding: 12px 0 12px 20px;
+            animation: sched-fade-in 0.5s ease both;
+        }
+
+        .schedule-item:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .schedule-item:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .schedule-item:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .schedule-item:nth-child(4) {
+            animation-delay: 0.4s;
+        }
+
+        .schedule-item:nth-child(5) {
+            animation-delay: 0.5s;
+        }
+
+        .schedule-item::before {
+            content: '';
+            position: absolute;
+            left: -30px;
+            top: 18px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #F59E0B, #F472B6);
+            border: 3px solid #0F0A0A;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25), 0 0 12px rgba(245, 158, 11, 0.15);
+        }
+
+        .schedule-item.featured::before {
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.4), 0 0 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .schedule-item .time {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
+            font-size: 0.75rem;
+            color: #F59E0B;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .schedule-item .title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #FFF7ED;
+            margin-top: 2px;
+        }
+
+        .schedule-item .desc {
+            font-size: 0.85rem;
+            color: #A8A29E;
+            margin-top: 2px;
+        }
+
+        .schedule-item.featured .title {
+            color: #FBBF24;
+        }
+
+        .schedule-featured-divider {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0 4px;
+            max-width: 180px;
+        }
+
+        .schedule-featured-divider-line {
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(245, 158, 11, 0.3), transparent);
+        }
+
+        .schedule-featured-divider-diamond {
+            width: 4px;
+            height: 4px;
+            background: #F59E0B;
+            transform: rotate(45deg);
+            flex-shrink: 0;
+        }
+
+        .schedule-item.featured .featured-quote {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 0.85rem;
+            color: #F59E0B;
+            margin-top: 4px;
+            opacity: 0.8;
+        }
+
+        @keyframes sched-fade-in {
+            0% {
+                opacity: 0;
+                transform: translateX(-12px);
+            }
+
+            100% {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* ── Section Title ── */
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 1.15rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #FFF7ED;
+        }
+
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(245, 158, 11, 0.3), transparent);
+        }
+
+        /* ── Card wrapper ── */
+        .download-card {
+            max-width: 520px;
+            margin: 20px auto;
+            background: linear-gradient(145deg, #12100e 0%, #0f0a0a 100%);
+            border: 1px solid rgba(255, 247, 237, 0.06);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            overflow: hidden;
+            position: relative;
+            animation: card-enter 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+        }
+
+        @keyframes card-enter {
+            0% {
+                opacity: 0;
+                transform: translateY(30px) scale(0.96);
+            }
+
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .download-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.3), transparent);
+            pointer-events: none;
+        }
+
+        .download-body {
+            padding: 0 24px 24px;
+        }
+
+        .download-section {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 247, 237, 0.04);
+        }
+
+        .download-section-hidden {
+            display: none;
+        }
+
+        /* ── PDF Viewer ── */
+        .pdf-viewer-container {
+            margin-bottom: 20px;
+            border-radius: 16px;
+            overflow: hidden;
+            background: rgba(18, 16, 14, 0.6);
+            border: 1px solid rgba(255, 247, 237, 0.08);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            position: relative;
+        }
+
+        .pdf-canvas-viewer {
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .pdf-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            color: #A8A29E;
+            font-size: 0.9rem;
+        }
+
+        .pdf-loading .spinner {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            border: 3px solid rgba(255, 255, 255, 0.05);
+            border-top-color: #F59E0B;
+            border-radius: 50%;
+            animation: pdf-spin 0.8s linear infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes pdf-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .pdf-canvas-container {
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            background: rgba(0, 0, 0, 0.25);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .pdf-page-canvas {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+            height: auto !important;
+            border-radius: 8px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+            background-color: #ffffff;
+        }
+
+        /* ── Page Indicator ── */
+        .pdf-page-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: rgba(0, 0, 0, 0.4);
+            border-top: 1px solid rgba(255, 247, 237, 0.04);
+            font-size: 0.8rem;
+            color: #A8A29E;
+        }
+
+        .pdf-page-indicator .page-counter {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
+            color: #F59E0B;
+        }
+
+        .pdf-progress-bar {
+            flex: 1;
+            max-width: 120px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .pdf-progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #F59E0B, #F472B6);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        /* ── Error state ── */
+        .error-message {
+            max-width: 480px;
+            margin: 40px auto;
+            text-align: center;
+            padding: 32px;
+        }
+
+        .error-message h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+            color: #FFF7ED;
+        }
+
+        .error-message p {
+            color: #A8A29E;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .error-message ul {
+            list-style: none;
+            padding: 0;
+            margin: 12px 0;
+            text-align: left;
+            display: inline-block;
+        }
+
+        .error-message ul li {
+            font-size: 0.85rem;
+            color: #A8A29E;
+            padding: 4px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .error-message ul li::before {
+            content: '\2022';
+            position: absolute;
+            left: 4px;
+            color: #F59E0B;
+        }
+
+        .retry-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #F59E0B 0%, #F472B6 100%);
+            color: #0F0A0A;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 0.9rem;
+            padding: 12px 28px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .retry-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px rgba(245, 158, 11, 0.45);
+        }
+
+        .retry-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* ── Loading: Confetti ── */
+        .loading-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #A8A29E;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .confetti-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .confetti-dot {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            opacity: 0;
+            animation: confetti-float 3s ease-in-out infinite;
+        }
+
+        .confetti-dot:nth-child(1) {
+            left: 10%;
+            animation-delay: 0s;
+            background: #F59E0B;
+        }
+
+        .confetti-dot:nth-child(2) {
+            left: 25%;
+            animation-delay: 0.3s;
+            background: #F472B6;
+        }
+
+        .confetti-dot:nth-child(3) {
+            left: 40%;
+            animation-delay: 0.6s;
+            background: #FBBF24;
+        }
+
+        .confetti-dot:nth-child(4) {
+            left: 55%;
+            animation-delay: 0.9s;
+            background: #FB923C;
+        }
+
+        .confetti-dot:nth-child(5) {
+            left: 70%;
+            animation-delay: 1.2s;
+            background: #F59E0B;
+        }
+
+        .confetti-dot:nth-child(6) {
+            left: 85%;
+            animation-delay: 1.5s;
+            background: #F472B6;
+        }
+
+        .confetti-dot:nth-child(7) {
+            left: 15%;
+            animation-delay: 0.5s;
+            background: #FBBF24;
+        }
+
+        .confetti-dot:nth-child(8) {
+            left: 50%;
+            animation-delay: 0.8s;
+            background: #FB923C;
+        }
+
+        .confetti-dot:nth-child(9) {
+            left: 75%;
+            animation-delay: 1.1s;
+            background: #F59E0B;
+        }
+
+        .confetti-dot:nth-child(10) {
+            left: 90%;
+            animation-delay: 1.4s;
+            background: #F472B6;
+        }
+
+        .confetti-dot:nth-child(11) {
+            left: 5%;
+            animation-delay: 0.2s;
+            background: #FBBF24;
+        }
+
+        .confetti-dot:nth-child(12) {
+            left: 35%;
+            animation-delay: 0.7s;
+            background: #FB923C;
+        }
+
+        .confetti-dot:nth-child(13) {
+            left: 60%;
+            animation-delay: 1s;
+            background: #F59E0B;
+        }
+
+        .confetti-dot:nth-child(14) {
+            left: 80%;
+            animation-delay: 1.3s;
+            background: #F472B6;
+        }
+
+        .confetti-dot:nth-child(15) {
+            left: 95%;
+            animation-delay: 1.6s;
+            background: #FBBF24;
+        }
+
+        @keyframes confetti-float {
+            0% {
+                transform: translateY(60px) rotate(0deg);
+                opacity: 0;
+            }
+
+            20% {
+                opacity: 0.8;
+            }
+
+            80% {
+                opacity: 0.6;
+            }
+
+            100% {
+                transform: translateY(-20px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .loading-cake {
+            font-size: 2.5rem;
+            display: block;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .loading-text {
+            font-size: 1rem;
+            color: #FFF7ED;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+
+        .loading-sub {
+            font-size: 0.85rem;
+            color: #A8A29E;
+            margin-top: 4px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 480px) {
+            .hero-event-name {
+                font-size: 1.6rem;
+            }
+
+            .download-card {
+                border-radius: 16px;
+                margin: 12px auto;
+            }
+
+            .download-body {
+                padding: 0 16px 16px;
+            }
+
+            .download-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .pdf-canvas-container {
+                max-height: 380px;
+                padding: 10px;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container" style="max-width: 600px;">
+
+        <!-- Loading State -->
+        <div id="loading-state" class="loading-state">
+            <div class="confetti-container">
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+                <div class="confetti-dot"></div>
+            </div>
+            <span class="loading-cake">&#x1F382;</span>
+            <div class="loading-text">Preparing your Birthday Experience...</div>
+            <div class="loading-sub">Loading program details</div>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-container" class="error-message glass-panel" style="display: none;">
+            <div style="font-size: 2.5rem; margin-bottom: 12px;">&#x1F605;</div>
+            <h2>Oops! Something went wrong</h2>
+            <p>We couldn't load the birthday program. This might mean:</p>
+            <ul>
+                <li>The event hasn't been set up yet by the organizer</li>
+                <li>There's a temporary network issue</li>
+                <li>The program data needs to be refreshed</li>
+            </ul>
+            <button id="retry-btn" class="retry-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+                Try Again
+            </button>
+            <p style="margin-top: 16px; font-size: 0.8rem; color: #6B7280;">
+                If the problem persists, ask the organizer to check the admin panel.
+            </p>
+        </div>
+
+        <!-- Main Card -->
+        <div id="download-card" class="download-card" style="display: none;">
+
+            <!-- Hero Section: Invitation Card -->
+            <div class="download-hero">
+                <div class="hero-invite-label">&#x2726; You're Invited &#x2726;</div>
+                <h1 id="event-name" class="hero-event-name">Birthday Celebration</h1>
+                <div class="hero-divider">
+                    <span class="hero-divider-line"></span>
+                    <span class="hero-divider-diamond"></span>
+                    <span class="hero-divider-line"></span>
+                </div>
+                <p id="event-venue" class="hero-venue">Venue</p>
+                <p id="event-date" class="hero-date">Date & Time</p>
+                <div class="hero-cta">
+                    <button class="hero-cta-btn"
+                        onclick="document.getElementById('pdf-viewer-container').scrollIntoView({ behavior: 'smooth' })">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <polyline points="19 12 12 19 5 12"></polyline>
+                        </svg>
+                        View Program
+                    </button>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div class="download-body">
+
+                <!-- PDF Viewer (inline) -->
+                <div id="pdf-viewer-container" class="pdf-viewer-container" style="display: none;">
+                    <div id="pdf-canvas-viewer" class="pdf-canvas-viewer">
+                        <div id="pdf-loading" class="pdf-loading">
+                            <div class="spinner"></div>
+                            <p>Preparing inline program view...</p>
+                        </div>
+                        <div id="pdf-canvas-container" class="pdf-canvas-container"></div>
+                        <div id="pdf-page-indicator" class="pdf-page-indicator" style="display: none;">
+                            <span class="page-counter" id="page-counter-text">Page 1 of 1</span>
+                            <div class="pdf-progress-bar">
+                                <div class="pdf-progress-bar-fill" id="pdf-progress-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Download Button -->
+                <div class="download-btn-wrapper">
+                    <button id="download-pdf-btn" class="download-btn" style="display: none;" onclick="downloadPdf()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download Birthday Program PDF
+                    </button>
+                    <div id="no-pdf-msg" class="no-pdf-msg">
+                        <p>Program PDF coming soon — check back after the event organizer uploads it.</p>
+                    </div>
+                </div>
+
+                <!-- Celebrant Section: Marquee Carousel -->
+                <div id="celebrant-section" class="download-section download-section-hidden">
+                    <h2 class="section-title">
+                        <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        Celebrating With Us
+                    </h2>
+                    <div id="celebrant-carousel" class="celebrant-carousel">
+                        <button class="celebrant-nav celebrant-nav-prev" id="carousel-prev"
+                            aria-label="Previous celebrant">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                        </button>
+                        <div id="celebrant-carousel-track" class="celebrant-carousel-track"></div>
+                        <button class="celebrant-nav celebrant-nav-next" id="carousel-next" aria-label="Next celebrant">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="celebrant-dots" class="celebrant-dots"></div>
+                </div>
+
+                <!-- Schedule Section -->
+                <div id="schedule-section" class="download-section download-section-hidden">
+                    <h2 class="section-title">
+                        <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                        Order of Events
+                    </h2>
+                    <div id="schedule-timeline" class="schedule-timeline"></div>
+                </div>
+
+            </div><!-- /.download-body -->
+        </div><!-- /.download-card -->
+    </div><!-- /.container -->
+
+    <script src="js/download.js"></script>
+
+    <!-- Service Worker Registration for PWA -->
+    <script>
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.register("/sw.js")
+                .then(function (reg) {
+                    console.log("[PWA] Service Worker registered:", reg.scope);
+                })
+                .catch(function (err) {
+                    console.log("[PWA] Service Worker registration failed:", err);
+                });
+        }
+    </script>
+</body>
+
+</html>

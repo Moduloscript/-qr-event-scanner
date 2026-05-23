@@ -1,0 +1,15 @@
+# Render Blueprint — QR Birthday Information System
+# See https://render.com/docs/infrastructure-as-code
+services:
+  - type: web
+    name: birthday-program
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: HOST
+        value: https://birthday-program.onrender.com
