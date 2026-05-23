@@ -213,8 +213,8 @@ Since this is a **single-event** system, the workflow is:
 
 **Trade-off:** If the service spins down during the event (no traffic for 15 min), data is lost. Mitigate by:
 
-- Having a cron job (e.g., [cron-job.org](https://cron-job.org) free) ping the service every 10 minutes
-- Using the admin panel to reconfigure if needed
+- Setting up a cron job (e.g., [cron-job.org](https://cron-job.org) free) to ping [`/api/health`](../../src/server.js) every 10 minutes — see [detailed setup guide](#keeping-the-service-warm-cron-job)
+- Using the admin panel to reconfigure if the database is lost
 
 ### Strategy B: Paid Tier — Persistent Disk ($7/month)
 
@@ -258,15 +258,83 @@ Use Render Postgres instead of SQLite:
 
 ### Keeping the Service Warm (Cron Job)
 
-Set up a free cron job at [cron-job.org](https://cron-job.org):
+The Render free tier spins down the service after **15 minutes of inactivity**. To prevent this during your event, set up a free cron job at [cron-job.org](https://cron-job.org) that pings the service every 10 minutes.
 
-| Field        | Value                                                  |
-| ------------ | ------------------------------------------------------ |
-| **URL**      | `https://birthday-program.onrender.com/api/event/info` |
-| **Interval** | Every 10 minutes                                       |
-| **Method**   | GET                                                    |
+We use a dedicated lightweight health endpoint [`/api/health`](../../src/server.js) that responds in under 1ms without touching the database.
 
-This prevents the service from spinning down during your event hours.
+#### Step-by-Step cron-job.org Setup
+
+**Step 1: Create an Account**
+
+1. Go to [cron-job.org](https://cron-job.org)
+2. Click **Sign Up** (top right)
+3. Enter your email address and a password
+4. Check your email and click the verification link
+5. Log in to your new account
+
+**Step 2: Create a Cron Job**
+
+1. From the dashboard, click **Create Cronjob**
+2. Fill in the form:
+
+| Field              | Value                                                     |
+| ------------------ | --------------------------------------------------------- |
+| **Title**          | `QR Event Scanner Keep-Alive`                             |
+| **URL**            | `https://qr-event-scanner.onrender.com/api/health`        |
+| **Method**         | `GET`                                                     |
+| **Interval**       | Every 10 minutes (or select "Every 10 minutes" from list) |
+| **Execution time** | Leave as default (runs 24/7)                              |
+| **Save responses** | Optional — enable if you want to debug later              |
+| **Notification**   | Disabled (you don't need alerts for keep-alive)           |
+
+3. Click **Create**
+
+**Step 3: Test the Cron Job**
+
+1. On the cron job detail page, click **Run now** (or **Execute now**)
+2. Wait a few seconds for the request to complete
+3. Check the **Last execution** status — it should show **Success** (HTTP 200)
+4. If it shows an error, verify the URL is correct and the service is running
+
+**Step 4: Verify in Render Logs**
+
+1. Go to [Render Dashboard](https://dashboard.render.com)
+2. Select your service → **Logs** tab
+3. You should see entries like:
+   ```
+   [HEALTH] Keep-alive ping from 185.xxx.xxx.xxx
+   ```
+   (The actual IP will be cron-job.org's server)
+
+**Step 5: Confirm the Service Stays Warm**
+
+1. Wait 15+ minutes without visiting the app yourself
+2. Open the app URL in a browser — it should load instantly (no cold start delay)
+3. If it still shows a cold start, check that:
+   - The cron job status shows "Success" for recent runs
+   - The URL in cron-job.org matches your actual Render URL exactly
+   - The cron job is **enabled** (not paused)
+
+#### Configuration Reference
+
+| Field        | Value                                              |
+| ------------ | -------------------------------------------------- |
+| **URL**      | `https://qr-event-scanner.onrender.com/api/health` |
+| **Interval** | Every 10 minutes                                   |
+| **Method**   | GET                                                |
+
+> **Note:** Replace `qr-event-scanner` with your actual Render service name if different.
+
+#### What Happens If cron-job.org Goes Down?
+
+cron-job.org is a free service with no SLA. If it's unavailable:
+
+- The Render service may spin down after 15 minutes of no traffic
+- **Recovery:** Visit the app URL in a browser — Render will spin it back up (~1 min cold start)
+- **Data loss:** If the service spun down, the SQLite database is lost. Reconfigure via admin panel (5 minutes)
+- **Alternative:** Set up a second cron job on a different service (e.g., [UptimeRobot](https://uptimerobot.com) free tier) as backup
+
+This is acceptable for a single-event system. The cron job is a mitigation, not a guarantee.
 
 ---
 

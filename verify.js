@@ -623,7 +623,28 @@ setTimeout(async () => {
     console.log("✅ Download endpoint still works OK");
 
     // ==========================================
-    // TEST 15: Download page HTML contains redesigned UI elements
+    // TEST 15: Health check endpoint (keep-alive)
+    // ==========================================
+    console.log("[TEST] 15. Testing health check endpoint...");
+
+    const healthRes = await makeRequest("GET", "/api/health");
+    assert.strictEqual(
+      healthRes.status,
+      "ok",
+      "Health check should return status ok",
+    );
+    assert.ok(
+      healthRes.timestamp,
+      "Health check should include timestamp",
+    );
+    assert.ok(
+      Date.parse(healthRes.timestamp),
+      "Timestamp should be valid ISO-8601",
+    );
+    console.log("✅ Health check endpoint works OK");
+
+    // ==========================================
+    // TEST 16: Download page HTML contains redesigned UI elements
     // ==========================================
     console.log(
       "[TEST] 15. Testing download page HTML for redesigned UI elements...",

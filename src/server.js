@@ -31,6 +31,12 @@ app.get("/api/config/public-url", (req, res) => {
   res.json({ publicUrl });
 });
 
+// Lightweight health check endpoint for keep-alive cron jobs
+// Does NOT query the database — zero load, responds in under 1ms
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 // ==========================================
 // MIDDLEWARES
 // ==========================================

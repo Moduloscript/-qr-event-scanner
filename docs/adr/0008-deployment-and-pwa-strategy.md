@@ -28,17 +28,18 @@ The app is a single-file Express.js server with SQLite persistence. It serves st
 
 We recommend **Render** ([render.com](https://render.com)) as the primary deployment platform for the following reasons:
 
-| Factor | Render | Fly.io | Railway | VPS |
-|---|---|---|---|---|
-| **Free tier** | ✅ Yes | ✅ Yes (limited) | ✅ Yes | ❌ (~$4/mo min) |
-| **SQLite persistence** | ✅ Yes (disk persists while service is active) | ✅ Yes (volume mounts) | ✅ Yes | ✅ Yes |
-| **Node.js support** | ✅ Native | ✅ Native | ✅ Native | ✅ Manual |
-| **Setup complexity** | Low (5 min) | Medium (CLI + config) | Low | High (server admin) |
-| **Auto HTTPS** | ✅ Yes | ✅ Yes | ✅ Yes | ❌ (manual) |
-| **Cold start** | ⚠️ 5-10s after idle sleep | ✅ Always-on (paid) | ⚠️ Similar to Render | ✅ Always-on |
-| **Custom domain** | ✅ Yes (free) | ✅ Yes | ✅ Yes | ✅ Yes |
+| Factor                 | Render                                         | Fly.io                 | Railway              | VPS                 |
+| ---------------------- | ---------------------------------------------- | ---------------------- | -------------------- | ------------------- |
+| **Free tier**          | ✅ Yes                                         | ✅ Yes (limited)       | ✅ Yes               | ❌ (~$4/mo min)     |
+| **SQLite persistence** | ✅ Yes (disk persists while service is active) | ✅ Yes (volume mounts) | ✅ Yes               | ✅ Yes              |
+| **Node.js support**    | ✅ Native                                      | ✅ Native              | ✅ Native            | ✅ Manual           |
+| **Setup complexity**   | Low (5 min)                                    | Medium (CLI + config)  | Low                  | High (server admin) |
+| **Auto HTTPS**         | ✅ Yes                                         | ✅ Yes                 | ✅ Yes               | ❌ (manual)         |
+| **Cold start**         | ⚠️ 5-10s after idle sleep                      | ✅ Always-on (paid)    | ⚠️ Similar to Render | ✅ Always-on        |
+| **Custom domain**      | ✅ Yes (free)                                  | ✅ Yes                 | ✅ Yes               | ✅ Yes              |
 
 **Render's free tier** is the best fit:
+
 - Web service sleeps after 15 minutes of inactivity (acceptable for a birthday event — first guest waits ~5s for wake-up)
 - Disk persists while the service is active
 - Automatic HTTPS with `*.onrender.com` subdomain
@@ -53,6 +54,7 @@ We will add Progressive Web App support to the guest download page:
 3. **Icon placeholders** — simple gradient PNGs with a "🎂" motif (192x192 and 512x512)
 
 **Why PWA instead of a native app:**
+
 - Zero installation friction — guests get an "Add to Home Screen" prompt in Chrome
 - Works offline — cached content renders without network
 - No app store submission — updates are instant
@@ -61,6 +63,7 @@ We will add Progressive Web App support to the guest download page:
 ### Environment Configuration
 
 A new `PUBLIC_URL` environment variable will control:
+
 - QR code target URL (admin panel generation)
 - PWA manifest `start_url` and `scope`
 - Service worker cache scope
@@ -87,18 +90,66 @@ PUBLIC_URL=https://birthday-program.onrender.com
 - **No iOS "Add to Home Screen" prompt** — Safari does not show the install prompt for PWAs. iOS users can still bookmark the page. This is a known Safari limitation.
 - **Service worker scope** — the service worker only controls the download page. The admin panel (`/`) is excluded from caching for security.
 
+### Keep-Alive Strategy (Cron Job)
+
+To prevent the free tier from spinning down during event hours, we use a **dedicated lightweight health endpoint** pinged by an external cron service.
+
+#### Decision: Dedicated `/api/health` Endpoint
+
+We add a new public GET endpoint at `/api/health` that:
+
+- Returns `{ status: "ok", timestamp: "<ISO-8601>" }` with HTTP 200
+- Does **not** query the database (zero load)
+- Does **not** require authentication
+- Responds in under 10ms
+
+**Why a dedicated endpoint instead of reusing `/api/event/info`?**
+
+| Factor         | `/api/event/info`                   | `/api/health`         |
+| -------------- | ----------------------------------- | --------------------- |
+| Database query | ✅ Yes — reads `event_config` table | ❌ No — zero DB load  |
+| Response size  | ~1-10 KB (full event payload)       | ~50 bytes             |
+| Latency        | ~5-50ms (depends on DB)             | <1ms                  |
+| Purpose        | Business data for guests            | Infrastructure health |
+| Log noise      | High (full payload logged)          | Minimal (single line) |
+
+Reusing `/api/event/info` would add unnecessary database load every 10 minutes for no benefit. A health endpoint is the standard pattern.
+
+#### Decision: cron-job.org as Keep-Alive Provider
+
+We use [cron-job.org](https://cron-job.org) because:
+
+| Factor               | cron-job.org      | UptimeRobot                     | Pingdom              |
+| -------------------- | ----------------- | ------------------------------- | -------------------- |
+| **Free tier**        | ✅ Unlimited jobs | ✅ 50 monitors (5-min interval) | ❌ Free tier removed |
+| **Interval**         | Down to 1 minute  | 5 minutes minimum               | N/A                  |
+| **Account required** | ✅ Yes (email)    | ✅ Yes                          | ✅ Yes               |
+| **Setup time**       | 2 minutes         | 5 minutes                       | 10+ minutes          |
+| **SLA**              | None (free)       | None (free)                     | Paid only            |
+
+cron-job.org is the simplest option: create a free account, add one job pointing to `https://qr-event-scanner.onrender.com/api/health` at 10-minute intervals.
+
+**Trade-off:** cron-job.org has no SLA. If their service is down, the Render service may spin down. Acceptable because:
+
+- The event is a single-day affair
+- If the service spins down, the organizer reconfigures via admin panel (5 minutes)
+- The cron job is a mitigation, not a guarantee
+
 ### Data Persistence Strategy
 
 For a single-birthday event, data persistence requirements are minimal:
+
 1. Organizer configures the event once (admin panel)
 2. Guests view/download over a few days
 3. After the event, the app is retired
 
 **If Render re-deploys and the SQLite file is lost:**
+
 - The organizer re-enters the event details (takes 5 minutes)
 - The PDF and photos are re-uploaded
 
 **For production use (optional):**
+
 - Upgrade to Render's paid tier ($7/mo) for persistent disk
 - Or use a cron job to back up `database.sqlite` to cloud storage
 
